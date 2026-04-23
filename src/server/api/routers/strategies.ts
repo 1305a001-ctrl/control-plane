@@ -4,6 +4,8 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { strategies, strategyActivations } from "~/server/db/schema";
 
+const statusEnum = z.enum(["active", "inactive", "draft"]);
+
 export const strategiesRouter = createTRPCRouter({
   list: protectedProcedure
     .input(
@@ -42,4 +44,62 @@ export const strategiesRouter = createTRPCRouter({
         .where(eq(strategyActivations.strategyId, input.strategyId))
         .orderBy(desc(strategyActivations.activatedAt)),
     ),
+
+  updateStatus: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), status: statusEnum }))
+    .mutation(async ({ ctx, input }) => {
+      const [updated] = await ctx.db
+        .update(strategies)
+        .set({ status: input.status })
+        .where(eq(strategies.id, input.id))
+        .returning();
+
+      if (input.status === "active" || input.status === "inactive") {
+        await ctx.db.insert(strategyActivations).values({
+          strategyId: input.id,
+          activatedBy: ctx.session.user.email ?? "unknown",
+          reason: `status set to ${input.status} via control plane`,
+          ...(input.status === "inactive" && { deactivatedAt: new Date() }),
+        });
+      }
+
+      return updated;
+    }),
+
+  updateFilters: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        signalConditions: z.array(
+          z.object({ condition: z.string(), weight: z.number().min(0).max(1) }),
+        ),
+        riskFilters: z.object({
+          min_source_credibility: z.number().min(0).max(1),
+          min_evidence_strength: z.number().min(0).max(1),
+          max_narrative_age_hours: z.number().int().min(1),
+        }),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .select()
+        .from(strategies)
+        .where(eq(strategies.id, input.id))
+        .limit(1);
+      if (!row) throw new Error("strategy not found");
+
+      const updated_frontmatter = {
+        ...(row.frontmatter as Record<string, unknown>),
+        signal_conditions: input.signalConditions,
+        risk_filters: input.riskFilters,
+      };
+
+      const [updated] = await ctx.db
+        .update(strategies)
+        .set({ frontmatter: updated_frontmatter })
+        .where(eq(strategies.id, input.id))
+        .returning();
+
+      return updated;
+    }),
 });

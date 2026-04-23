@@ -282,3 +282,24 @@ export const pipelineAudit = pgTable(
     index("pipeline_audit_status_idx").on(t.status),
   ],
 );
+
+export const agentConfigs = pgTable(
+  "agent_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentType: text("agent_type").notNull(),
+    slug: text("slug").notNull(),
+    version: integer("version").notNull().default(1),
+    name: text("name").notNull(),
+    description: text("description"),
+    config: jsonb("config").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdBy: text("created_by").notNull(),
+    supersedesId: uuid("supersedes_id"),
+  },
+  (t) => [
+    index("agent_configs_type_active_idx").on(t.agentType, t.isActive),
+  ],
+);

@@ -12,13 +12,25 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-950 text-gray-100">
-      <aside className="w-52 shrink-0 border-r border-gray-800 p-4 flex flex-col gap-1">
-        <Link href="/" className="mb-4 text-sm font-semibold text-gray-400 hover:text-white">
-          ← Control Plane
-        </Link>
-        <NavLink href="/configs">Research Configs</NavLink>
-        <NavLink href="/strategies">Strategies</NavLink>
-        <NavLink href="/signals">Signals</NavLink>
+      <aside className="w-56 shrink-0 border-r border-gray-800 p-4 flex flex-col gap-0.5">
+        <div className="mb-5">
+          <Link href="/" className="text-sm font-bold text-white tracking-tight">
+            the2357.com
+          </Link>
+          <p className="text-xs text-gray-500 mt-0.5">Control Plane</p>
+        </div>
+
+        <NavSection label="Pipeline">
+          <NavLink href="/configs">Research Configs</NavLink>
+          <NavLink href="/strategies">Strategies</NavLink>
+          <NavLink href="/signals">Signals</NavLink>
+        </NavSection>
+
+        <NavSection label="Agents">
+          <NavLink href="/trading">Trading Agent</NavLink>
+          <NavLink href="/poly">Poly Agent</NavLink>
+        </NavSection>
+
         <div className="mt-auto pt-4 border-t border-gray-800">
           <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
           <Link href="/api/auth/signout" className="text-xs text-gray-500 hover:text-gray-300">
@@ -31,11 +43,22 @@ export default async function DashboardLayout({
   );
 }
 
+function NavSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-3">
+      <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link
       href={href}
-      className="rounded px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
+      className="block rounded px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
     >
       {children}
     </Link>

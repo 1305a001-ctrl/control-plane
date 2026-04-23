@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { api } from "~/trpc/server";
 import { Badge } from "~/components/ui/badge";
 import {
@@ -26,13 +27,17 @@ export default async function StrategiesPage() {
       <div>
         <h1 className="text-xl font-semibold">Strategies</h1>
         <p className="text-sm text-gray-400">
-          Synced from strategy-library. Versioned by git SHA + content hash.
+          Click any row to edit status, signal conditions, and risk filters.
         </p>
       </div>
 
       {strategies.length === 0 ? (
         <p className="text-sm text-gray-500">
-          No strategies synced yet. Run sync_strategies.py to seed from strategy-library.
+          No strategies synced yet. Run{" "}
+          <code className="font-mono text-xs bg-gray-800 px-1 py-0.5 rounded">
+            sync_strategies.py
+          </code>{" "}
+          to seed from strategy-library.
         </p>
       ) : (
         (["news", "trading", "poly"] as const).map((type) =>
@@ -44,41 +49,50 @@ export default async function StrategiesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Slug</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Version</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Assets</TableHead>
+                    <TableHead>Conditions</TableHead>
                     <TableHead>Git SHA</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {byType[type]!.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-mono text-sm">{s.slug}</TableCell>
-                      <TableCell>{s.name}</TableCell>
-                      <TableCell className="text-gray-400">{s.version}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            s.status === "active"
-                              ? "default"
-                              : s.status === "draft"
-                                ? "outline"
-                                : "secondary"
-                          }
-                        >
-                          {s.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-400">
-                        {(s.frontmatter as { assets?: string[] })?.assets?.join(", ")}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-gray-500">
-                        {s.gitSha.slice(0, 7)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {byType[type]!.map((s) => {
+                    const fm = s.frontmatter as Record<string, unknown>;
+                    const conditions = (fm.signal_conditions as unknown[]) ?? [];
+                    return (
+                      <TableRow key={s.id} className="cursor-pointer hover:bg-gray-900">
+                        <TableCell>
+                          <Link href={`/strategies/${s.id}`} className="block">
+                            <span className="font-medium">{s.name}</span>
+                            <span className="block text-xs text-gray-500 font-mono">{s.slug}</span>
+                          </Link>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              s.status === "active"
+                                ? "default"
+                                : s.status === "draft"
+                                  ? "outline"
+                                  : "secondary"
+                            }
+                          >
+                            {s.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-400">
+                          {(fm.assets as string[])?.join(", ")}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-400">
+                          {conditions.length} condition{conditions.length !== 1 ? "s" : ""}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-gray-500">
+                          {s.gitSha.slice(0, 7)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </section>

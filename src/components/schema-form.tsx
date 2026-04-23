@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, type FieldValues, type DefaultValues, type Path } from "react-hook-form";
+import { useForm, type DefaultValues, type Path, type FieldValues } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -51,10 +51,8 @@ export function SchemaForm<T extends FieldValues>({
   isSubmitting = false,
   fieldOrder,
 }: SchemaFormProps<T>) {
-  const form = useForm<T>({
-    resolver: zodResolver(schema),
-    defaultValues,
-  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const form = useForm<T>({ resolver: zodResolver(schema) as any, defaultValues });
 
   const shape = schema.shape as Record<string, z.ZodTypeAny>;
   const keys = fieldOrder ?? Object.keys(shape);
@@ -120,7 +118,8 @@ export function SchemaForm<T extends FieldValues>({
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5">
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <form onSubmit={form.handleSubmit(onSubmit as any)} className="flex flex-col gap-5">
       {keys.map((key) => renderField(key))}
       <Button type="submit" disabled={isSubmitting} className="self-start">
         {isSubmitting ? "Saving..." : submitLabel}
@@ -130,12 +129,12 @@ export function SchemaForm<T extends FieldValues>({
 }
 
 function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {
-  if (schema instanceof (z as any).ZodOptional || schema instanceof (z as any).ZodDefault) {
+  if (schema instanceof z.ZodOptional || schema instanceof z.ZodDefault) {
     return unwrap(schema._def.innerType as z.ZodTypeAny);
   }
   return schema;
 }
 
 function isOptional(schema: z.ZodTypeAny): boolean {
-  return schema instanceof (z as any).ZodOptional;
+  return schema instanceof z.ZodOptional;
 }
