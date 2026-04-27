@@ -283,6 +283,76 @@ export const pipelineAudit = pgTable(
   ],
 );
 
+// ─── Phase 5 trading-agent: trades ──────────────────────────────────────────
+
+export const trades = pgTable(
+  "trades",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    signalId: uuid("signal_id").notNull().references(() => marketSignals.id),
+    agentConfigId: uuid("agent_config_id").notNull(),
+    agentConfigVersion: integer("agent_config_version").notNull(),
+    asset: text("asset").notNull(),
+    direction: text("direction").notNull(),
+    broker: text("broker").notNull(),
+    sizeUsd: real("size_usd").notNull(),
+    entryPrice: real("entry_price"),
+    qty: real("qty"),
+    takeProfitPrice: real("take_profit_price"),
+    stopLossPrice: real("stop_loss_price"),
+    timeStopAt: timestamp("time_stop_at", { withTimezone: true }),
+    status: text("status").notNull().default("pending"),
+    brokerOrderId: text("broker_order_id"),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    exitPrice: real("exit_price"),
+    pnlUsd: real("pnl_usd"),
+    closeReason: text("close_reason"),
+    errors: jsonb("errors").notNull().default([]),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("trades_status_idx").on(t.status),
+    index("trades_signal_idx").on(t.signalId),
+    index("trades_opened_at_idx").on(t.openedAt),
+  ],
+);
+
+// ─── Phase 7 poly-agent: poly_positions ─────────────────────────────────────
+
+export const polyPositions = pgTable(
+  "poly_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    signalId: uuid("signal_id").notNull().references(() => marketSignals.id),
+    agentConfigId: uuid("agent_config_id").notNull(),
+    agentConfigVersion: integer("agent_config_version").notNull(),
+    marketSlug: text("market_slug").notNull(),
+    marketUrl: text("market_url"),
+    marketConditionId: text("market_condition_id"),
+    side: text("side").notNull(),
+    stakeUsd: real("stake_usd").notNull(),
+    entryProbability: real("entry_probability"),
+    shares: real("shares"),
+    status: text("status").notNull().default("pending"),
+    broker: text("broker").notNull().default("paper"),
+    resolvedOutcome: text("resolved_outcome"),
+    exitProbability: real("exit_probability"),
+    pnlUsd: real("pnl_usd"),
+    closeReason: text("close_reason"),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    errors: jsonb("errors").notNull().default([]),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("poly_positions_status_idx").on(t.status),
+    index("poly_positions_signal_idx").on(t.signalId),
+  ],
+);
+
 export const agentConfigs = pgTable(
   "agent_configs",
   {
