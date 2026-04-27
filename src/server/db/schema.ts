@@ -349,6 +349,9 @@ export const leads = pgTable(
     scoreFactors: jsonb("score_factors").notNull().default({}),
     status: text("status").notNull().default("new"),
 
+    chainName: text("chain_name"),
+    chainRole: text("chain_role").notNull().default("standalone"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     notes: text("notes"),

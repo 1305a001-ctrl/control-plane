@@ -30,17 +30,29 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive"> = 
 export default async function LeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ niche?: string; status?: string; city?: string }>;
+  searchParams: Promise<{ niche?: string; status?: string; city?: string; show?: string }>;
 }) {
   const params = await searchParams;
-  const [leads, summary] = await Promise.all([
+  // ?show=branches      → only branches
+  // ?show=parents       → only chain parents
+  // ?show=all           → standalones + parents + branches (no filter)
+  // (default)           → standalones + parents (no branches), the outreach view
+  const showBranches = params.show === "all" || params.show === "branches";
+  const chainRole =
+    params.show === "branches" ? "branch" :
+    params.show === "parents" ? "parent" : undefined;
+
+  const [leads, summary, chains] = await Promise.all([
     api.leads.list({
       niche: params.niche as never,
       status: params.status as never,
       geoCity: params.city,
+      chainRole: chainRole as never,
+      excludeBranches: !showBranches && !chainRole,
       limit: 200,
     }),
     api.leads.summary(),
+    api.leads.chainSummary(),
   ]);
 
   return (
@@ -53,7 +65,7 @@ export default async function LeadsPage({
         </p>
       </div>
 
-      <SummaryCards summary={summary} />
+      <SummaryCards summary={summary} chains={chains} />
 
       <Filters />
 
@@ -86,6 +98,11 @@ export default async function LeadsPage({
                     <Link href={`/leads/${l.id}`} className="font-medium hover:text-indigo-300">
                       {l.businessName}
                     </Link>
+                    {l.chainName && (
+                      <span className="ml-2 inline-block text-[10px] text-gray-400 border border-gray-700 rounded px-1">
+                        {l.chainRole === "parent" ? "chain parent" : "branch"} · {l.chainName}
+                      </span>
+                    )}
                     {l.businessAddress && (
                       <span className="block text-xs text-gray-500 truncate max-w-md">
                         {l.businessAddress}
@@ -136,6 +153,7 @@ export default async function LeadsPage({
 
 function SummaryCards({
   summary,
+  chains,
 }: {
   summary: {
     total: number;
@@ -143,11 +161,21 @@ function SummaryCards({
     byNiche: Record<string, number>;
     fitBuckets: { high: number; mid: number; low: number };
   };
+  chains: {
+    byRole: Record<string, number>;
+    chainCount: number;
+  };
 }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <Card label="Total leads">
         <span className="text-2xl font-semibold">{summary.total}</span>
+        <span className="block text-xs text-gray-500">
+          {chains.byRole.standalone ?? 0} standalone · {chains.byRole.parent ?? 0} chain parents
+        </span>
+        <span className="block text-xs text-gray-500">
+          {chains.byRole.branch ?? 0} branches hidden ({chains.chainCount} chains)
+        </span>
       </Card>
       <Card label="High fit (≥0.55)">
         <span className="text-2xl font-semibold text-green-400">
@@ -193,7 +221,7 @@ function Card({ label, children }: { label: string; children: React.ReactNode })
 function Filters() {
   return (
     <div className="flex flex-wrap gap-2 text-xs">
-      <FilterPill href="/leads" label="all" />
+      <FilterPill href="/leads" label="outreach view" />
       <FilterPill href="/leads?niche=restaurant" label="🍴 restaurants" />
       <FilterPill href="/leads?niche=clinic_dental" label="🦷 dental" />
       <FilterPill href="/leads?niche=clinic_medical" label="🩺 medical" />
@@ -203,6 +231,10 @@ function Filters() {
       <FilterPill href="/leads?status=outreached" label="outreached" />
       <FilterPill href="/leads?status=replied" label="replied" />
       <FilterPill href="/leads?status=qualified" label="qualified" />
+      <span className="px-2 text-gray-700">·</span>
+      <FilterPill href="/leads?show=parents" label="chain parents only" />
+      <FilterPill href="/leads?show=branches" label="branches only" />
+      <FilterPill href="/leads?show=all" label="show all (incl branches)" />
     </div>
   );
 }
