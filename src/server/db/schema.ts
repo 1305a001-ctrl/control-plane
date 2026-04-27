@@ -364,6 +364,65 @@ export const leads = pgTable(
   ],
 );
 
+// ─── Phase 6b outreach-agent: outreach_messages + outreach_events ───────────
+
+export const outreachMessages = pgTable(
+  "outreach_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    leadId: uuid("lead_id").notNull().references(() => leads.id),
+
+    channel: text("channel").notNull(),
+    direction: text("direction").notNull(),
+
+    subject: text("subject"),
+    body: text("body").notNull(),
+    demoUrl: text("demo_url"),
+
+    status: text("status").notNull().default("drafted"),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+
+    toEmail: text("to_email"),
+    toPhone: text("to_phone"),
+
+    resendMessageId: text("resend_message_id"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+
+    metadata: jsonb("metadata").notNull().default({}),
+    errors: jsonb("errors").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("outreach_messages_lead_idx").on(t.leadId),
+    index("outreach_messages_status_idx").on(t.status),
+    index("outreach_messages_created_idx").on(t.createdAt),
+  ],
+);
+
+export const outreachEvents = pgTable(
+  "outreach_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id").references(() => outreachMessages.id),
+    resendMessageId: text("resend_message_id"),
+    eventType: text("event_type").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    payload: jsonb("payload").notNull(),
+    signatureVerified: boolean("signature_verified").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("outreach_events_message_idx").on(t.messageId),
+    index("outreach_events_received_idx").on(t.receivedAt),
+  ],
+);
+
 // ─── Phase 7 poly-agent: poly_positions ─────────────────────────────────────
 
 export const polyPositions = pgTable(

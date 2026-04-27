@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "~/trpc/server";
 
+import { OutreachPanel } from "./OutreachPanel";
 import { StatusControls } from "./StatusControls";
 
 export default async function LeadDetailPage({
@@ -95,6 +96,13 @@ export default async function LeadDetailPage({
           <Pair k="Has booking widget" v={fmtBool(lead.websiteHasBooking)} />
           <Pair k="Last modified" v={lead.websiteLastModified ?? "—"} />
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
+          Outreach
+        </h2>
+        <OutreachPanel leadId={lead.id} />
       </section>
 
       <section className="text-xs text-gray-500 space-y-1">
