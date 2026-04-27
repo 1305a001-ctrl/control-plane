@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "~/trpc/server";
-import { Badge } from "~/components/ui/badge";
+
+import { StatusControls } from "./StatusControls";
 
 export default async function LeadDetailPage({
   params,
@@ -34,7 +35,7 @@ export default async function LeadDetailPage({
           </span>
         </Field>
         <Field label="Status">
-          <Badge>{lead.status}</Badge>
+          <StatusControls leadId={lead.id} current={lead.status} />
         </Field>
         <Field label="Rating">
           <span className="text-xl">{lead.businessRating?.toFixed(1) ?? "—"}</span>
