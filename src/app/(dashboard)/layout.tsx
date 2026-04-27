@@ -36,6 +36,10 @@ export default async function DashboardLayout({
           <NavLink href="/positions">Poly Positions</NavLink>
         </NavSection>
 
+        <NavSection label="Phase 6 — Agency">
+          <NavLink href="/leads">Leads</NavLink>
+        </NavSection>
+
         <div className="mt-auto pt-4 border-t border-gray-800">
           <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
           <Link href="/api/auth/signout" className="text-xs text-gray-500 hover:text-gray-300">

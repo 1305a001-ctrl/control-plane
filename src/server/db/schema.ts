@@ -319,6 +319,48 @@ export const trades = pgTable(
   ],
 );
 
+// ─── Phase 6 prospect-agent: leads ──────────────────────────────────────────
+
+export const leads = pgTable(
+  "leads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: text("source").notNull(),
+    googlePlaceId: text("google_place_id"),
+    niche: text("niche").notNull(),
+    geoCity: text("geo_city"),
+    geoCountry: text("geo_country").notNull().default("MY"),
+
+    businessName: text("business_name").notNull(),
+    businessAddress: text("business_address"),
+    businessLat: real("business_lat"),
+    businessLng: real("business_lng"),
+    businessRating: real("business_rating"),
+    businessReviewCount: integer("business_review_count"),
+    businessPhone: text("business_phone"),
+    businessWebsiteUrl: text("business_website_url"),
+
+    websiteHttps: boolean("website_https"),
+    websiteMobileScore: integer("website_mobile_score"),
+    websiteHasBooking: boolean("website_has_booking"),
+    websiteLastModified: date("website_last_modified"),
+
+    fitScore: real("fit_score").notNull().default(0),
+    scoreFactors: jsonb("score_factors").notNull().default({}),
+    status: text("status").notNull().default("new"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    notes: text("notes"),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => [
+    index("leads_status_score_idx").on(t.status, t.fitScore),
+    index("leads_niche_geo_idx").on(t.niche, t.geoCity),
+    index("leads_updated_idx").on(t.updatedAt),
+  ],
+);
+
 // ─── Phase 7 poly-agent: poly_positions ─────────────────────────────────────
 
 export const polyPositions = pgTable(

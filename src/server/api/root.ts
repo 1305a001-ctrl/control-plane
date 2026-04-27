@@ -5,6 +5,7 @@ import { strategiesRouter } from "~/server/api/routers/strategies";
 import { agentConfigsRouter } from "~/server/api/routers/agent-configs";
 import { tradesRouter } from "~/server/api/routers/trades";
 import { polyPositionsRouter } from "~/server/api/routers/poly-positions";
+import { leadsRouter } from "~/server/api/routers/leads";
 
 export const appRouter = createTRPCRouter({
   configs: configsRouter,
@@ -13,6 +14,7 @@ export const appRouter = createTRPCRouter({
   agentConfigs: agentConfigsRouter,
   trades: tradesRouter,
   polyPositions: polyPositionsRouter,
+  leads: leadsRouter,
 });
 
 export type AppRouter = typeof appRouter;
