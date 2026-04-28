@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { CancelButton } from "./CancelButton";
 
 export default async function TradesPage() {
   const [open, closed, summary] = await Promise.all([
@@ -46,6 +47,7 @@ export default async function TradesPage() {
                 <TableHead className="text-right">SL</TableHead>
                 <TableHead>Opened</TableHead>
                 <TableHead>Time stop</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -64,6 +66,9 @@ export default async function TradesPage() {
                   <TableCell className="text-right text-red-400">{fmtPrice(t.stopLossPrice)}</TableCell>
                   <TableCell className="text-xs text-gray-400">{fmtDt(t.openedAt)}</TableCell>
                   <TableCell className="text-xs text-gray-400">{fmtDt(t.timeStopAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <CancelButton tradeId={t.id} currentStatus={t.status} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

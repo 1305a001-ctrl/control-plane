@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
@@ -79,5 +80,36 @@ export const tradesRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.select().from(trades).where(eq(trades.id, input.id));
       return rows[0] ?? null;
+    }),
+
+  // NOTE: This is a UI-only state transition. It marks the trade row as
+  // cancelled in the control-plane DB but does NOT contact the broker. Real
+  // broker cancellation must be wired into the trading-agent's broker adapter
+  // (e.g. alpaca cancel-order endpoint) — out of scope for this mutation.
+  cancel: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const updated = await ctx.db
+        .update(trades)
+        .set({
+          status: "cancelled",
+          closedAt: new Date(),
+          closeReason: "manual_cancel",
+        })
+        .where(
+          and(
+            eq(trades.id, input.id),
+            inArray(trades.status, ["pending", "open"]),
+          ),
+        )
+        .returning({ id: trades.id });
+
+      if (updated.length === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Trade is not in a cancellable state (pending/open).",
+        });
+      }
+      return { ok: true, id: updated[0]!.id };
     }),
 });

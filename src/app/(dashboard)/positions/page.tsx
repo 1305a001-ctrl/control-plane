@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { CloseButton } from "./CloseButton";
 
 export default async function PolyPositionsPage() {
   const [open, closed, summary] = await Promise.all([
@@ -43,6 +44,7 @@ export default async function PolyPositionsPage() {
                 <TableHead className="text-right">Entry prob.</TableHead>
                 <TableHead className="text-right">Shares</TableHead>
                 <TableHead>Opened</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -72,6 +74,9 @@ export default async function PolyPositionsPage() {
                     {p.shares != null ? p.shares.toFixed(1) : "—"}
                   </TableCell>
                   <TableCell className="text-xs text-gray-400">{fmtDt(p.openedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <CloseButton positionId={p.id} currentStatus={p.status} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

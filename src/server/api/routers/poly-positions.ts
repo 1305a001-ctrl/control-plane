@@ -1,4 +1,5 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
@@ -79,4 +80,35 @@ export const polyPositionsRouter = createTRPCRouter({
       losses,
     };
   }),
+
+  // NOTE: This is a UI-only state transition. It marks the poly position as
+  // closed in the control-plane DB but does NOT actually unwind the position
+  // on Polymarket (no order placed against the CLOB). Real unwinding must be
+  // wired into the poly-agent's broker adapter — out of scope here.
+  close: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const updated = await ctx.db
+        .update(polyPositions)
+        .set({
+          status: "closed",
+          closedAt: new Date(),
+          closeReason: "manual_close",
+        })
+        .where(
+          and(
+            eq(polyPositions.id, input.id),
+            inArray(polyPositions.status, ["pending", "open"]),
+          ),
+        )
+        .returning({ id: polyPositions.id });
+
+      if (updated.length === 0) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Position is not in a closable state (pending/open).",
+        });
+      }
+      return { ok: true, id: updated[0]!.id };
+    }),
 });
