@@ -29,8 +29,10 @@ export const outreachRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const approver = ctx.session?.user?.email ?? "unknown";
 
-      // Atomically claim the row: only proceed from drafted/approved → queued.
-      // This prevents double-send if someone double-clicks the button.
+      // Atomically claim the row: only proceed from drafted/approved/failed → queued.
+      // This prevents double-send on rapid double-click but ALLOWS retry of a
+      // previously-failed send (Resend 4xx, network blip). 'queued' is intentionally
+      // excluded so a stuck mid-flight attempt isn't re-fired before its outcome lands.
       const claimed = await ctx.db
         .update(outreachMessages)
         .set({
@@ -43,7 +45,7 @@ export const outreachRouter = createTRPCRouter({
         .where(
           and(
             eq(outreachMessages.id, input.id),
-            sql`${outreachMessages.status} IN ('drafted','approved')`,
+            sql`${outreachMessages.status} IN ('drafted','approved','failed')`,
           ),
         )
         .returning();
