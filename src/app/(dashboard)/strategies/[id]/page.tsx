@@ -8,6 +8,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 
+import { StrategyPerformance } from "./StrategyPerformance";
+
 type Status = "active" | "inactive" | "draft";
 
 interface SignalCondition {
@@ -85,7 +87,7 @@ export default function StrategyDetailPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 max-w-2xl">
+    <div className="flex flex-col gap-8 max-w-4xl">
       <div className="flex items-start justify-between">
         <div>
           <button
@@ -101,6 +103,9 @@ export default function StrategyDetailPage() {
           <Badge variant={statusColors[strategy.status as Status]}>{strategy.status}</Badge>
         </div>
       </div>
+
+      {/* Performance — read-only signal/trade stats */}
+      <StrategyPerformance strategyId={strategy.id} />
 
       {/* Status control */}
       <section className="flex flex-col gap-3">

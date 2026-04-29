@@ -1,8 +1,8 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { strategies, strategyActivations } from "~/server/db/schema";
+import { marketSignals, signalOutcomes, strategies, strategyActivations, trades } from "~/server/db/schema";
 
 const statusEnum = z.enum(["active", "inactive", "draft"]);
 
@@ -64,6 +64,97 @@ export const strategiesRouter = createTRPCRouter({
       }
 
       return updated;
+    }),
+
+  performance: protectedProcedure
+    .input(
+      z.object({
+        strategyId: z.string().uuid(),
+        sinceDays: z.number().int().min(1).max(365).default(30),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const sinceDate = new Date(Date.now() - input.sinceDays * 24 * 60 * 60 * 1000);
+
+      // Per-horizon aggregation joining outcomes → signals filtered to this strategy.
+      const horizonRows = await ctx.db.execute(sql`
+        SELECT
+          o.evaluation_horizon AS horizon,
+          COUNT(*) AS total,
+          SUM((o.outcome = 'win')::int)::int AS wins,
+          SUM((o.outcome = 'loss')::int)::int AS losses,
+          SUM((o.outcome = 'flat')::int)::int AS flats,
+          SUM((o.outcome = 'expired')::int)::int AS expired,
+          AVG(o.price_change_pct) FILTER (WHERE o.outcome IN ('win','loss')) AS avg_pct,
+          MAX(o.evaluated_at) AS last_evaluated_at
+        FROM signal_outcomes o
+        JOIN market_signals s ON s.id = o.signal_id
+        WHERE s.strategy_id = ${input.strategyId}::uuid
+          AND s.published_at >= ${sinceDate}
+        GROUP BY o.evaluation_horizon
+        ORDER BY o.evaluation_horizon
+      `);
+
+      // Recent signals firing this strategy (count by direction)
+      const directionRows = await ctx.db
+        .select({
+          direction: marketSignals.direction,
+          n: sql<number>`COUNT(*)::int`,
+          avgConfidence: sql<number>`AVG(${marketSignals.confidence})::float`,
+        })
+        .from(marketSignals)
+        .where(
+          and(
+            eq(marketSignals.strategyId, input.strategyId),
+            gte(marketSignals.publishedAt, sinceDate),
+          ),
+        )
+        .groupBy(marketSignals.direction);
+
+      // Trades attached to this strategy's signals
+      const tradeRows = await ctx.db.execute(sql`
+        SELECT
+          COUNT(*)::int AS total,
+          SUM((status = 'open' OR status = 'pending')::int)::int AS open,
+          SUM((status = 'closed' AND pnl_usd > 0)::int)::int AS wins,
+          SUM((status = 'closed' AND pnl_usd < 0)::int)::int AS losses,
+          COALESCE(SUM(pnl_usd) FILTER (WHERE status = 'closed'), 0)::float AS total_pnl,
+          COALESCE(AVG(pnl_usd) FILTER (WHERE status = 'closed'), 0)::float AS avg_pnl
+        FROM trades t
+        JOIN market_signals s ON s.id = t.signal_id
+        WHERE s.strategy_id = ${input.strategyId}::uuid
+          AND s.published_at >= ${sinceDate}
+      `);
+
+      // Recent outcomes (last 15 rows for inspection)
+      const recentOutcomes = await ctx.db.execute(sql`
+        SELECT
+          o.outcome,
+          o.evaluation_horizon AS horizon,
+          o.price_change_pct,
+          o.notes,
+          o.evaluated_at,
+          s.asset,
+          s.direction,
+          s.confidence
+        FROM signal_outcomes o
+        JOIN market_signals s ON s.id = o.signal_id
+        WHERE s.strategy_id = ${input.strategyId}::uuid
+        ORDER BY o.evaluated_at DESC
+        LIMIT 15
+      `);
+
+      const tradesArr = tradeRows as unknown as Array<Record<string, unknown>>;
+      return {
+        sinceDays: input.sinceDays,
+        sinceDate,
+        byHorizon: horizonRows as unknown as Array<Record<string, unknown>>,
+        byDirection: directionRows,
+        trades: tradesArr[0] ?? {
+          total: 0, open: 0, wins: 0, losses: 0, total_pnl: 0, avg_pnl: 0,
+        },
+        recentOutcomes: recentOutcomes as unknown as Array<Record<string, unknown>>,
+      };
     }),
 
   updateFilters: protectedProcedure
