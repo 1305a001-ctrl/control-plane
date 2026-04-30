@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS strategies (
   slug TEXT NOT NULL,
   name TEXT NOT NULL,
   version TEXT NOT NULL,
-  type TEXT NOT NULL,
-  status TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('news','trading','poly')),
+  status TEXT NOT NULL CHECK (status IN ('active','inactive','draft')),
   git_sha TEXT NOT NULL,
   content_hash TEXT NOT NULL,
   frontmatter JSONB NOT NULL,
@@ -69,8 +69,8 @@ CREATE TABLE IF NOT EXISTS articles (
   published_at TIMESTAMPTZ,
   fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   assets TEXT[] NOT NULL DEFAULT '{}',
-  sentiment_score REAL,
-  source_credibility REAL,
+  sentiment_score REAL CHECK (sentiment_score >= -1 AND sentiment_score <= 1),
+  source_credibility REAL CHECK (source_credibility >= 0 AND source_credibility <= 1),
   raw JSONB NOT NULL,
   supersedes_id UUID
 );
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS experiments (
   asset TEXT,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ended_at TIMESTAMPTZ,
-  status TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('running','completed','cancelled')),
   results JSONB,
   created_by TEXT NOT NULL
 );
