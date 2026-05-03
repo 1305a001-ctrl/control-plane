@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import {
   boolean,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -476,4 +477,118 @@ export const agentConfigs = pgTable(
   (t) => [
     index("agent_configs_type_active_idx").on(t.agentType, t.isActive),
   ],
+);
+
+// ─── Trading-stack tables (migration 009 + 010) ─────────────────────────────
+
+export const killEvents = pgTable(
+  "kill_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    triggeredAt: timestamp("triggered_at", { withTimezone: true }).defaultNow().notNull(),
+    level: integer("level").notNull(),
+    kind: text("kind").notNull(),
+    scope: text("scope").notNull().default("all"),
+    actor: text("actor").notNull(),
+    reason: text("reason"),
+    metadata: jsonb("metadata").notNull().default({}),
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
+    clearedBy: text("cleared_by"),
+  },
+  (t) => [
+    index("kill_events_triggered_idx").on(t.triggeredAt),
+    index("kill_events_kind_idx").on(t.kind, t.triggeredAt),
+  ],
+);
+
+export const riskLedger = pgTable(
+  "risk_ledger",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow().notNull(),
+    scope: text("scope").notNull(),
+    period: text("period").notNull(),
+    pnlUsd: doublePrecision("pnl_usd").notNull().default(0),
+    pnlPct: doublePrecision("pnl_pct").notNull().default(0),
+    drawdownUsd: doublePrecision("drawdown_usd").notNull().default(0),
+    drawdownPct: doublePrecision("drawdown_pct").notNull().default(0),
+    highWaterMarkUsd: doublePrecision("high_water_mark_usd"),
+    openPositionsCount: integer("open_positions_count").notNull().default(0),
+    exposureUsd: doublePrecision("exposure_usd").notNull().default(0),
+    feesUsd: doublePrecision("fees_usd").notNull().default(0),
+    slippageUsd: doublePrecision("slippage_usd").notNull().default(0),
+    tradesOpened: integer("trades_opened").notNull().default(0),
+    tradesClosed: integer("trades_closed").notNull().default(0),
+    tradesWon: integer("trades_won").notNull().default(0),
+    tradesLost: integer("trades_lost").notNull().default(0),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => [
+    index("risk_ledger_scope_period_idx").on(t.scope, t.period, t.snapshotAt),
+    index("risk_ledger_snapshot_idx").on(t.snapshotAt),
+  ],
+);
+
+export const macroEvents = pgTable(
+  "macro_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+    eventAt: timestamp("event_at", { withTimezone: true }).notNull(),
+    source: text("source").notNull(),
+    kind: text("kind").notNull(),
+    instrument: text("instrument"),
+    payload: jsonb("payload").notNull().default({}),
+    interpretation: text("interpretation"),
+    surpriseScore: doublePrecision("surprise_score"),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => [
+    index("macro_events_event_at_idx").on(t.eventAt),
+    index("macro_events_source_idx").on(t.source, t.eventAt),
+    index("macro_events_kind_idx").on(t.kind, t.eventAt),
+    uniqueIndex("macro_events_source_instrument_event_at_uidx").on(
+      t.source,
+      t.instrument,
+      t.eventAt,
+    ),
+  ],
+);
+
+export const sourceScores = pgTable(
+  "source_scores",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow().notNull(),
+    sourceId: text("source_id").notNull(),
+    sourceKind: text("source_kind").notNull(),
+    windowDays: integer("window_days").notNull(),
+    signalsEmitted: integer("signals_emitted").notNull().default(0),
+    signalsActionable: integer("signals_actionable").notNull().default(0),
+    signalsTraded: integer("signals_traded").notNull().default(0),
+    signalsWon: integer("signals_won").notNull().default(0),
+    signalsLost: integer("signals_lost").notNull().default(0),
+    rollingSharpe: doublePrecision("rolling_sharpe"),
+    rollingWinRate: doublePrecision("rolling_win_rate"),
+    rollingAvgEdgeBps: doublePrecision("rolling_avg_edge_bps"),
+    rollingPnlUsd: doublePrecision("rolling_pnl_usd"),
+    weight: doublePrecision("weight").notNull().default(0),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => [
+    index("source_scores_latest_idx").on(t.sourceId, t.windowDays, t.snapshotAt),
+    index("source_scores_kind_idx").on(t.sourceKind, t.snapshotAt),
+  ],
+);
+
+export const strategyBuckets = pgTable(
+  "strategy_buckets",
+  {
+    slug: text("slug").primaryKey(),
+    description: text("description").notNull(),
+    typicalHold: text("typical_hold").notNull(),
+    stopLogic: text("stop_logic").notNull(),
+    perTradeSizePctMax: doublePrecision("per_trade_size_pct_max").notNull(),
+    concurrentMax: integer("concurrent_max").notNull(),
+  },
 );
