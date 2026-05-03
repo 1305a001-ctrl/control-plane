@@ -8,70 +8,45 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import { api } from "~/trpc/server";
 
 /**
- * Trading OS — landing dashboard.
+ * Trading OS — landing dashboard. Live data via api.dashboard.summary().
  *
- * Per project_trading_stack.md:
- *   - Top stats: today P&L, open positions, win rate, fees + slippage
- *   - System health LEDs
- *   - Risk meters: daily DD vs 5%, total DD vs 20%, correlation cluster
- *   - Asset-class grid (Crypto / Stocks / Forex / Predictions) — click-through
- *   - Live signal feed (last 20)
- *   - Recent kill events (from kill_events table)
- *   - Big-red Kill All button (with confirmation modal)
- *
- * Live data wiring is intentionally NOT done in this scaffold. All numbers are
- * placeholder. Wire to tRPC routers in a follow-up PR once the OMS + risk-
- * ledger persistence worker exist (Phase 1F + Phase 2).
+ * Reads from: risk_ledger (latest snapshot from risk-watcher), trades +
+ * poly_positions (open count), kill_events (active halts), macro_events
+ * (extreme readings from CFTC COT).
  */
 export default async function TradingDashboard() {
-  // TODO(phase-2): replace placeholders with tRPC calls:
-  //   - api.risk.todayPnL()           → daily P&L + win rate + fees + slippage
-  //   - api.positions.openCount()     → per-asset-class open count
-  //   - api.risk.drawdown()           → DD vs limits
-  //   - api.signals.recent({ limit })
-  //   - api.killEvents.recent({ limit })
-  //   - api.health.systemStatus()     → SSE stream for live LEDs
-  const placeholder = {
-    todayPnLUsd: 0,
-    todayPnLPct: 0,
-    tradesToday: 0,
-    winRate: null as number | null,
-    feesUsd: 0,
-    slippageUsd: 0,
-    openPositions: { crypto: 0, stocks: 0, forex: 0, predictions: 0 },
-    dailyDdPct: 0,
-    dailyDdLimitPct: 5,
-    totalDdPct: 0,
-    totalDdLimitPct: 20,
-    correlationCluster: 0,
-    correlationLimit: 0.8,
-    halts: [] as string[],
-    systemHealth: {
-      "ai-primary": "ok",
-      "ai-staging": "ok",
-      "ai-edge": "ok",
-      postgres: "ok",
-      redis: "ok",
-      alpaca: "not-connected",
-      okx: "not-connected",
-    } as Record<string, "ok" | "degraded" | "down" | "not-connected">,
-  };
+  const data = await api.dashboard.summary();
 
-  const totalOpen = Object.values(placeholder.openPositions).reduce(
-    (a, b) => a + b,
-    0,
-  );
+  const totalOpen =
+    data.positions.crypto.count +
+    data.positions.stocks.count +
+    data.positions.forex.count +
+    data.positions.predictions.count;
+
+  const winRate =
+    data.risk.tradesClosed > 0
+      ? data.risk.tradesWon / data.risk.tradesClosed
+      : null;
+
+  const dailyDdAbs = Math.abs(data.risk.drawdownPct);
+  const totalDdAbs = Math.abs(data.risk.drawdownPct); // total = same window for v0.1.0
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Top bar — title + kill button */}
+      {/* Top bar */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Trading OS</h1>
           <p className="text-sm text-gray-400">
-            1000–3000 trades/day target · paper-mode until edge proven · L0 maturity
+            1000–3000 trades/day target · paper-mode · L0 maturity ·
+            {data.risk.snapshotAt ? (
+              <span> last snapshot {new Date(data.risk.snapshotAt).toLocaleTimeString()}</span>
+            ) : (
+              <span className="text-amber-400"> waiting for risk-watcher snapshot</span>
+            )}
           </p>
         </div>
         <Link
@@ -88,13 +63,15 @@ export default async function TradingDashboard() {
           <CardHeader className="pb-2">
             <CardDescription>Today P&amp;L</CardDescription>
             <CardTitle className="text-3xl font-bold">
-              <span className={pnlColor(placeholder.todayPnLUsd)}>
-                {fmtUsd(placeholder.todayPnLUsd)}
+              <span className={pnlColor(data.risk.pnlUsd)}>
+                {fmtUsd(data.risk.pnlUsd)}
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-gray-400">
-            {fmtPct(placeholder.todayPnLPct)} · {placeholder.tradesToday} trades
+            {fmtPct(data.risk.pnlPct)} ·{" "}
+            {data.risk.tradesClosed} trades · win{" "}
+            {winRate === null ? "—" : `${(winRate * 100).toFixed(0)}%`}
           </CardContent>
         </Card>
 
@@ -104,25 +81,21 @@ export default async function TradingDashboard() {
             <CardTitle className="text-3xl font-bold">{totalOpen}</CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-gray-400">
-            {Object.entries(placeholder.openPositions).map(([k, v]) => (
-              <span key={k} className="mr-2">
-                {k} {v}
-              </span>
-            ))}
+            crypto {data.positions.crypto.count} · stocks{" "}
+            {data.positions.stocks.count} · fx {data.positions.forex.count} ·
+            poly {data.positions.predictions.count}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Win rate</CardDescription>
+            <CardDescription>Exposure</CardDescription>
             <CardTitle className="text-3xl font-bold">
-              {placeholder.winRate === null
-                ? "—"
-                : `${(placeholder.winRate * 100).toFixed(0)}%`}
+              {fmtUsd(data.risk.exposureUsd)}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-gray-400">
-            no trades yet today
+            gross sum across open
           </CardContent>
         </Card>
 
@@ -130,12 +103,12 @@ export default async function TradingDashboard() {
           <CardHeader className="pb-2">
             <CardDescription>Cost today</CardDescription>
             <CardTitle className="text-3xl font-bold text-amber-400">
-              {fmtUsd(placeholder.feesUsd + placeholder.slippageUsd)}
+              {fmtUsd(data.risk.feesUsd + data.risk.slippageUsd)}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-gray-400">
-            fees {fmtUsd(placeholder.feesUsd)} · slip{" "}
-            {fmtUsd(placeholder.slippageUsd)}
+            fees {fmtUsd(data.risk.feesUsd)} · slip{" "}
+            {fmtUsd(data.risk.slippageUsd)}
           </CardContent>
         </Card>
       </div>
@@ -150,22 +123,23 @@ export default async function TradingDashboard() {
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <RiskMeter
             label="Daily DD"
-            current={placeholder.dailyDdPct}
-            limit={placeholder.dailyDdLimitPct}
+            current={dailyDdAbs}
+            limit={data.limits.dailyDdPct}
             unit="%"
           />
           <RiskMeter
             label="Total DD"
-            current={placeholder.totalDdPct}
-            limit={placeholder.totalDdLimitPct}
+            current={totalDdAbs}
+            limit={data.limits.totalDdPct}
             unit="%"
           />
           <RiskMeter
-            label="Correlation cluster"
-            current={placeholder.correlationCluster}
-            limit={placeholder.correlationLimit}
+            label="Active halts"
+            current={data.activeKills.length}
+            limit={1}
             unit=""
-            displayDecimals={2}
+            displayDecimals={0}
+            invertedColors
           />
         </CardContent>
       </Card>
@@ -179,33 +153,29 @@ export default async function TradingDashboard() {
           <AssetCard
             href="/crypto"
             name="Crypto"
-            pnl={0}
-            positions={placeholder.openPositions.crypto}
-            trades={0}
+            positions={data.positions.crypto.count}
+            exposure={data.positions.crypto.exposureUsd}
             note="OKX/Bybit · 24/7"
           />
           <AssetCard
             href="/stocks"
             name="Stocks"
-            pnl={0}
-            positions={placeholder.openPositions.stocks}
-            trades={0}
+            positions={data.positions.stocks.count}
+            exposure={data.positions.stocks.exposureUsd}
             note="Alpaca · US hours"
           />
           <AssetCard
             href="/forex"
             name="Forex"
-            pnl={0}
-            positions={placeholder.openPositions.forex}
-            trades={0}
-            note="OANDA / IC Markets · 24/5"
+            positions={data.positions.forex.count}
+            exposure={data.positions.forex.exposureUsd}
+            note="OANDA · 24/5 · pending"
           />
           <AssetCard
             href="/predictions"
             name="Predictions"
-            pnl={0}
-            positions={placeholder.openPositions.predictions}
-            trades={0}
+            positions={data.positions.predictions.count}
+            exposure={data.positions.predictions.exposureUsd}
             note="Polymarket · resolution-bound"
           />
         </div>
@@ -216,14 +186,45 @@ export default async function TradingDashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-              Live signal feed
+              Macro extremes (last 30d)
             </CardTitle>
-            <CardDescription>last 20 from alphas:active</CardDescription>
+            <CardDescription>
+              CFTC COT positioning · |z| ≥ 2 · click into{" "}
+              <Link href="/alpha" className="underline">
+                /alpha
+              </Link>{" "}
+              for full
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500">
-              <i>no signals yet — alpha-fusion layer not deployed</i>
-            </p>
+            {data.macroExtremes.length === 0 ? (
+              <p className="text-sm italic text-gray-500">
+                no extreme readings yet
+              </p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {data.macroExtremes.slice(0, 6).map((e) => (
+                  <li key={e.id} className="flex items-baseline gap-2">
+                    <span className="font-mono text-xs text-gray-500">
+                      {new Date(e.eventAt).toISOString().slice(0, 10)}
+                    </span>
+                    <span className="font-semibold">{e.instrument}</span>
+                    <span
+                      className={
+                        e.interpretation === "extreme-long"
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }
+                    >
+                      z={e.surpriseScore?.toFixed(2)}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {e.interpretation}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 
@@ -232,34 +233,31 @@ export default async function TradingDashboard() {
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
               Recent kill events
             </CardTitle>
-            <CardDescription>last 10 from risk:alerts</CardDescription>
+            <CardDescription>last 5 active · full list at /kill-switch</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-500">
-              <i>
-                no events yet — kill-events persistence worker not deployed
-                (Phase 1F)
-              </i>
-            </p>
+            {data.activeKills.length === 0 ? (
+              <p className="text-sm italic text-green-400">
+                ✓ no active halts
+              </p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {data.activeKills.slice(0, 5).map((k) => (
+                  <li key={k.id} className="flex items-baseline gap-2">
+                    <span className="font-mono text-xs text-gray-500">
+                      {new Date(k.triggeredAt).toLocaleTimeString()}
+                    </span>
+                    <Badge variant="destructive" className="text-xs">
+                      L{k.level} {k.kind}
+                    </Badge>
+                    <span className="text-xs text-gray-400">{k.scope}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      {/* System health */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-            System health
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(placeholder.systemHealth).map(([name, state]) => (
-              <HealthBadge key={name} name={name} state={state} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -270,16 +268,26 @@ function RiskMeter({
   limit,
   unit,
   displayDecimals = 1,
+  invertedColors = false,
 }: {
   label: string;
   current: number;
   limit: number;
   unit: string;
   displayDecimals?: number;
+  invertedColors?: boolean;
 }) {
-  const pct = Math.min(100, (Math.abs(current) / Math.abs(limit)) * 100);
-  const color =
-    pct >= 80 ? "bg-red-500" : pct >= 50 ? "bg-amber-500" : "bg-green-500";
+  const pct = Math.min(100, (current / limit) * 100);
+  const greenAtLow = !invertedColors;
+  const color = greenAtLow
+    ? pct >= 80
+      ? "bg-red-500"
+      : pct >= 50
+        ? "bg-amber-500"
+        : "bg-green-500"
+    : current === 0
+      ? "bg-green-500"
+      : "bg-red-500";
   return (
     <div>
       <div className="mb-1 flex justify-between text-xs text-gray-400">
@@ -303,16 +311,14 @@ function RiskMeter({
 function AssetCard({
   href,
   name,
-  pnl,
   positions,
-  trades,
+  exposure,
   note,
 }: {
   href: string;
   name: string;
-  pnl: number;
   positions: number;
-  trades: number;
+  exposure: number;
   note: string;
 }) {
   return (
@@ -323,40 +329,11 @@ function AssetCard({
           <CardDescription className="text-xs">{note}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
-          <div className={pnlColor(pnl)}>{fmtUsd(pnl)}</div>
-          <div className="text-xs text-gray-400">
-            {positions} open · {trades} today
-          </div>
+          <div className="font-bold">{fmtUsd(exposure)}</div>
+          <div className="text-xs text-gray-400">{positions} open</div>
         </CardContent>
       </Card>
     </Link>
-  );
-}
-
-function HealthBadge({
-  name,
-  state,
-}: {
-  name: string;
-  state: "ok" | "degraded" | "down" | "not-connected";
-}) {
-  const variant: Record<typeof state, "default" | "secondary" | "destructive" | "outline"> = {
-    ok: "default",
-    degraded: "secondary",
-    down: "destructive",
-    "not-connected": "outline",
-  };
-  const dot: Record<typeof state, string> = {
-    ok: "bg-green-500",
-    degraded: "bg-amber-500",
-    down: "bg-red-500",
-    "not-connected": "bg-gray-600",
-  };
-  return (
-    <Badge variant={variant[state]} className="gap-1.5 font-mono text-xs">
-      <span className={`h-2 w-2 rounded-full ${dot[state]}`} />
-      {name}
-    </Badge>
   );
 }
 
@@ -365,7 +342,7 @@ function fmtUsd(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
   if (abs >= 1_000) return `${sign}$${(abs / 1_000).toFixed(1)}k`;
-  return `${sign}$${abs.toFixed(0)}`;
+  return `${sign}$${abs.toFixed(2)}`;
 }
 
 function fmtPct(n: number): string {
