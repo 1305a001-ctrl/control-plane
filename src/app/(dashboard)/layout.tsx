@@ -12,13 +12,27 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-950 text-gray-100">
-      <aside className="w-56 shrink-0 border-r border-gray-800 p-4 flex flex-col gap-0.5">
+      <aside className="w-56 shrink-0 border-r border-gray-800 p-4 flex flex-col gap-0.5 overflow-y-auto">
         <div className="mb-5">
           <Link href="/" className="text-sm font-bold text-white tracking-tight">
             the2357.com
           </Link>
           <p className="text-xs text-gray-500 mt-0.5">Control Plane</p>
         </div>
+
+        <NavSection label="Trading OS">
+          <NavLink href="/dashboard">Dashboard</NavLink>
+          <NavLink href="/crypto">Crypto</NavLink>
+          <NavLink href="/stocks">Stocks</NavLink>
+          <NavLink href="/forex">Forex</NavLink>
+          <NavLink href="/predictions">Predictions</NavLink>
+        </NavSection>
+
+        <NavSection label="Risk + Alpha">
+          <NavLink href="/risk">Risk</NavLink>
+          <NavLink href="/alpha">Alpha sources</NavLink>
+          <NavLink href="/kill-switch">Kill switch</NavLink>
+        </NavSection>
 
         <NavSection label="Pipeline">
           <NavLink href="/configs">Research Configs</NavLink>
