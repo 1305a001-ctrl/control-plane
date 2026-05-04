@@ -592,3 +592,21 @@ export const strategyBuckets = pgTable(
     concurrentMax: integer("concurrent_max").notNull(),
   },
 );
+
+export const correlationSnapshots = pgTable(
+  "correlation_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    snapshotAt: timestamp("snapshot_at", { withTimezone: true }).defaultNow().notNull(),
+    windowMinutes: integer("window_minutes").notNull(),
+    assetUniverse: text("asset_universe").array().notNull(),
+    matrix: jsonb("matrix").notNull(),
+    maxPairwiseCorr: doublePrecision("max_pairwise_corr"),
+    clusterCountAboveThreshold: integer("cluster_count_above_threshold"),
+    thresholdBreached: boolean("threshold_breached").notNull().default(false),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => [
+    index("correlation_snapshots_recent_idx").on(t.snapshotAt),
+  ],
+);
