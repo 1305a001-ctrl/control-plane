@@ -10,6 +10,8 @@ import {
 } from "~/components/ui/card";
 import { api } from "~/trpc/server";
 
+import { EquitySparkline } from "../_components/equity-sparkline";
+
 /**
  * Trading OS — landing dashboard. Live data via api.dashboard.summary().
  *
@@ -18,9 +20,10 @@ import { api } from "~/trpc/server";
  * (extreme readings from CFTC COT).
  */
 export default async function TradingDashboard() {
-  const [data, upcomingEvents] = await Promise.all([
+  const [data, upcomingEvents, riskRecent] = await Promise.all([
     api.dashboard.summary(),
     api.macro.upcomingStatements({ daysAhead: 60, limit: 10 }),
+    api.risk.recent(),
   ]);
 
   const totalOpen =
@@ -115,6 +118,28 @@ export default async function TradingDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Equity curve sparkline */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+            Equity curve
+          </CardTitle>
+          <CardDescription>
+            risk_ledger snapshots (1-min cadence from risk-watcher)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EquitySparkline
+            snapshots={riskRecent.map((r) => ({
+              snapshotAt: r.snapshotAt,
+              pnlUsd: r.pnlUsd,
+            }))}
+            width={640}
+            height={80}
+          />
+        </CardContent>
+      </Card>
 
       {/* Risk meters row */}
       <Card>

@@ -51,6 +51,7 @@ export default async function StrategiesPage() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Bucket</TableHead>
                     <TableHead>Assets</TableHead>
                     <TableHead>Conditions</TableHead>
                     <TableHead>Git SHA</TableHead>
@@ -60,6 +61,7 @@ export default async function StrategiesPage() {
                   {byType[type]!.map((s) => {
                     const fm = s.frontmatter as Record<string, unknown>;
                     const conditions = (fm.signal_conditions as unknown[]) ?? [];
+                    const bucket = (fm.bucket as string | undefined) ?? null;
                     return (
                       <TableRow key={s.id} className="cursor-pointer hover:bg-gray-900">
                         <TableCell>
@@ -80,6 +82,17 @@ export default async function StrategiesPage() {
                           >
                             {s.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {bucket ? (
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {bucket}
+                            </Badge>
+                          ) : type === "news" ? (
+                            <span className="text-xs text-gray-600">n/a</span>
+                          ) : (
+                            <span className="text-xs text-amber-400">missing</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-gray-400">
                           {(fm.assets as string[])?.join(", ")}
