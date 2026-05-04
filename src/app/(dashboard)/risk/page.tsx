@@ -21,11 +21,12 @@ import { api } from "~/trpc/server";
  * Wires to: risk_ledger (latest + recent for sparkline), kill_events (audit log).
  */
 export default async function RiskPage() {
-  const [latest, recent, killAudit, limits] = await Promise.all([
+  const [latest, recent, killAudit, limits, correlation] = await Promise.all([
     api.risk.latest(),
     api.risk.recent(),
     api.kill.recent(),
     api.risk.limits(),
+    api.risk.latestCorrelation(),
   ]);
 
   return (
@@ -158,6 +159,65 @@ export default async function RiskPage() {
               · newest{" "}
               {new Date(recent[0]!.snapshotAt).toLocaleString()}
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Correlation snapshot */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+            Correlation snapshot
+          </CardTitle>
+          <CardDescription>
+            Cross-position correlation matrix from risk-watcher (every 5 min, rolling{" "}
+            {correlation?.windowMinutes ?? 60} min window)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {correlation === null ? (
+            <p className="text-sm italic text-gray-500">
+              no snapshots yet — risk-watcher writes every 5 min
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                <Stat
+                  label="Snapshot at"
+                  value={new Date(correlation.snapshotAt).toLocaleTimeString()}
+                />
+                <Stat
+                  label="Asset universe"
+                  value={
+                    correlation.assetUniverse.length === 0
+                      ? "—"
+                      : `${correlation.assetUniverse.length} (${correlation.assetUniverse.join(
+                          ", ",
+                        )})`
+                  }
+                />
+                <Stat
+                  label="Max pairwise corr"
+                  value={
+                    correlation.maxPairwiseCorr === null
+                      ? "—"
+                      : correlation.maxPairwiseCorr.toFixed(3)
+                  }
+                />
+                <Stat
+                  label="Cluster status"
+                  value={
+                    correlation.thresholdBreached ? "🚨 BREACH" : "✓ ok"
+                  }
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Matrix is empty in v0.1.0 (the price-history source to compute
+                returns isn&apos;t wired yet — comes in Phase 2 with per-venue
+                adapters). Asset universe + cadence are stable; matrix-math fills
+                in when prices flow.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

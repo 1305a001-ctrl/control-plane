@@ -18,7 +18,10 @@ import { api } from "~/trpc/server";
  * (extreme readings from CFTC COT).
  */
 export default async function TradingDashboard() {
-  const data = await api.dashboard.summary();
+  const [data, upcomingEvents] = await Promise.all([
+    api.dashboard.summary(),
+    api.macro.upcomingStatements({ daysAhead: 60, limit: 10 }),
+  ]);
 
   const totalOpen =
     data.positions.crypto.count +
@@ -180,6 +183,58 @@ export default async function TradingDashboard() {
           />
         </div>
       </div>
+
+      {/* Upcoming central bank events */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+            Upcoming central bank events (next 60 days)
+          </CardTitle>
+          <CardDescription>
+            FOMC / ECB / BoE / BoJ / BNM scheduled meetings · macro_events from
+            cb_statements puller
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {upcomingEvents.length === 0 ? (
+            <p className="text-sm italic text-gray-500">
+              no events in next 60 days
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {upcomingEvents.map((e) => {
+                const days = Math.ceil(
+                  (new Date(e.eventAt).getTime() - Date.now()) /
+                    (1000 * 60 * 60 * 24),
+                );
+                return (
+                  <li key={e.id} className="flex items-baseline gap-2">
+                    <span className="font-mono text-xs text-gray-500">
+                      {new Date(e.eventAt).toISOString().slice(0, 10)}
+                    </span>
+                    <span className="font-semibold uppercase">
+                      {e.source.replace("-statement", "")}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {(e.payload as { meeting_type?: string })?.meeting_type ??
+                        "—"}
+                    </span>
+                    <span
+                      className={
+                        days <= 7
+                          ? "text-amber-400 text-xs"
+                          : "text-gray-500 text-xs"
+                      }
+                    >
+                      in {days}d
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Live feeds row */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

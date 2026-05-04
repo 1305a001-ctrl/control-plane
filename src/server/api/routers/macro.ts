@@ -77,6 +77,35 @@ export const macroRouter = createTRPCRouter({
     }),
 
   /**
+   * Upcoming central bank statements (next N days) from cb_statements puller.
+   * Returns scheduled-future macro_events ordered by event_at ascending.
+   */
+  upcomingStatements: protectedProcedure
+    .input(
+      z.object({
+        daysAhead: z.number().min(1).max(180).default(60),
+        limit: z.number().min(1).max(50).default(20),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const now = new Date();
+      const cutoff = new Date(now.getTime() + input.daysAhead * 24 * 60 * 60 * 1000);
+      // Use ascending order for "upcoming" — closest dates first
+      const rows = await ctx.db
+        .select()
+        .from(macroEvents)
+        .where(
+          and(
+            eq(macroEvents.interpretation, "scheduled-future"),
+            gte(macroEvents.eventAt, now),
+          ),
+        )
+        .orderBy(macroEvents.eventAt)
+        .limit(input.limit);
+      return rows.filter((r) => r.eventAt <= cutoff);
+    }),
+
+  /**
    * History for a single instrument — for charting positioning over time.
    */
   history: protectedProcedure

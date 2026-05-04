@@ -1,7 +1,7 @@
 import { desc, eq, and } from "drizzle-orm";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { riskLedger } from "~/server/db/schema";
+import { correlationSnapshots, riskLedger } from "~/server/db/schema";
 
 export const riskRouter = createTRPCRouter({
   /**
@@ -28,6 +28,20 @@ export const riskRouter = createTRPCRouter({
       .where(and(eq(riskLedger.scope, "total"), eq(riskLedger.period, "intraday")))
       .orderBy(desc(riskLedger.snapshotAt))
       .limit(200);
+  }),
+
+  /**
+   * Most recent correlation_snapshots row.
+   * Source: risk-watcher's correlation task (every 5 min over open positions).
+   * Matrix is empty until a price-history source is wired (Phase 2).
+   */
+  latestCorrelation: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select()
+      .from(correlationSnapshots)
+      .orderBy(desc(correlationSnapshots.snapshotAt))
+      .limit(1);
+    return rows[0] ?? null;
   }),
 
   /**
