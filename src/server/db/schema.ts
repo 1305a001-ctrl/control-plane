@@ -610,3 +610,40 @@ export const correlationSnapshots = pgTable(
     index("correlation_snapshots_recent_idx").on(t.snapshotAt),
   ],
 );
+
+// Phase 2 OMS pipeline — written by oms-gateway (queued/rejected) +
+// oms-dispatcher (submitted) + binance-adapter WS (filled/partial/etc).
+export const omsIntents = pgTable(
+  "oms_intents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    strategyId: uuid("strategy_id").notNull(),
+    signalId: uuid("signal_id"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    venue: text("venue").notNull(),
+    asset: text("asset").notNull(),
+    side: text("side").notNull(),
+    orderType: text("order_type").notNull(),
+    qty: doublePrecision("qty"),
+    notionalUsd: doublePrecision("notional_usd"),
+    limitPrice: doublePrecision("limit_price"),
+    stopPrice: doublePrecision("stop_price"),
+    takeProfitPrice: doublePrecision("take_profit_price"),
+    timeInForce: text("time_in_force"),
+    status: text("status").notNull().default("queued"),
+    brokerOrderId: text("broker_order_id"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
+    fillPrice: doublePrecision("fill_price"),
+    fillQty: doublePrecision("fill_qty"),
+    feesUsd: doublePrecision("fees_usd"),
+    metadata: jsonb("metadata").notNull().default({}),
+  },
+  (t) => [
+    index("oms_intents_status_created_idx").on(t.status, t.createdAt),
+    index("oms_intents_venue_created_idx").on(t.venue, t.createdAt),
+  ],
+);
+
