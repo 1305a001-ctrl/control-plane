@@ -48,6 +48,7 @@ export default async function DashboardLayout({
         <NavSection label="Activity">
           <NavLink href="/trades">Trades</NavLink>
           <NavLink href="/intents">OMS Intents</NavLink>
+          <NavLink href="/performance">Performance</NavLink>
           <NavLink href="/positions">Poly Positions</NavLink>
         </NavSection>
 
