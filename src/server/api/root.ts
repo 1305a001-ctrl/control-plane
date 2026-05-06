@@ -7,6 +7,7 @@ import { tradesRouter } from "~/server/api/routers/trades";
 import { intentsRouter } from "~/server/api/routers/intents";
 import { performanceRouter } from "~/server/api/routers/performance";
 import { polyPositionsRouter } from "~/server/api/routers/poly-positions";
+import { positionsRouter } from "~/server/api/routers/positions";
 import { leadsRouter } from "~/server/api/routers/leads";
 import { outreachRouter } from "~/server/api/routers/outreach";
 import { riskRouter } from "~/server/api/routers/risk";
@@ -23,6 +24,7 @@ export const appRouter = createTRPCRouter({
   intents: intentsRouter,
   performance: performanceRouter,
   polyPositions: polyPositionsRouter,
+  positions: positionsRouter,
   leads: leadsRouter,
   outreach: outreachRouter,
   risk: riskRouter,
