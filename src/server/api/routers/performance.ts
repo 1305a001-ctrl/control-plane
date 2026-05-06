@@ -74,31 +74,49 @@ export const performanceRouter = createTRPCRouter({
         FROM positions p
         LEFT JOIN strategies s ON s.id = p.strategy_id
         WHERE p.status = 'closed' AND p.realized_pnl_usd IS NOT NULL
+      ),
+      open_open AS (
+        SELECT
+          p.strategy_id,
+          COUNT(*)::int AS open_count,
+          COALESCE(SUM(p.unrealized_pnl_usd), 0)::float AS open_unrealized
+        FROM positions p
+        WHERE p.status = 'open'
+        GROUP BY p.strategy_id
       )
       SELECT
-        strategy_id::text          AS "strategyId",
-        slug,
-        bucket,
+        c.strategy_id::text        AS "strategyId",
+        c.slug,
+        c.bucket,
         COUNT(*)::int              AS "tradeCount",
-        SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END)::int AS wins,
-        SUM(CASE WHEN realized_pnl_usd < 0 THEN 1 ELSE 0 END)::int AS losses,
-        COALESCE(SUM(realized_pnl_usd), 0)::float AS "totalPnlUsd",
-        COALESCE(AVG(realized_pnl_usd), 0)::float AS "avgPnlUsd",
-        AVG(pnl_pct)::float        AS "avgPnlPct",
-        STDDEV(pnl_pct)::float     AS "stddevPnlPct",
-        COALESCE(MAX(realized_pnl_usd), 0)::float AS "bestTrade",
-        COALESCE(MIN(realized_pnl_usd), 0)::float AS "worstTrade",
-        COALESCE(SUM(fees_usd), 0)::float AS "totalFeesUsd",
-        COALESCE(SUM(notional), 0)::float AS "totalNotional",
-        MIN(closed_at)             AS "firstClosedAt",
-        MAX(closed_at)             AS "lastClosedAt"
-      FROM closed
-      GROUP BY strategy_id, slug, bucket
+        SUM(CASE WHEN c.realized_pnl_usd > 0 THEN 1 ELSE 0 END)::int AS wins,
+        SUM(CASE WHEN c.realized_pnl_usd < 0 THEN 1 ELSE 0 END)::int AS losses,
+        COALESCE(SUM(c.realized_pnl_usd), 0)::float AS "totalPnlUsd",
+        COALESCE(AVG(c.realized_pnl_usd), 0)::float AS "avgPnlUsd",
+        AVG(c.pnl_pct)::float      AS "avgPnlPct",
+        STDDEV(c.pnl_pct)::float   AS "stddevPnlPct",
+        COALESCE(MAX(c.realized_pnl_usd), 0)::float AS "bestTrade",
+        COALESCE(MIN(c.realized_pnl_usd), 0)::float AS "worstTrade",
+        COALESCE(SUM(c.fees_usd), 0)::float AS "totalFeesUsd",
+        COALESCE(SUM(c.notional), 0)::float AS "totalNotional",
+        COALESCE(MAX(o.open_unrealized), 0)::float AS "openUnrealizedPnlUsd",
+        COALESCE(MAX(o.open_count), 0)::int AS "openCount",
+        MIN(c.closed_at)           AS "firstClosedAt",
+        MAX(c.closed_at)           AS "lastClosedAt"
+      FROM closed c
+      LEFT JOIN open_open o ON o.strategy_id = c.strategy_id
+      GROUP BY c.strategy_id, c.slug, c.bucket
       ORDER BY "totalPnlUsd" DESC
     `);
-    return (rows as unknown as Array<StrategyRow & { totalNotional: number }>).map(
-      (r) => withMetrics(r, r.totalNotional ?? 0),
-    );
+    return (rows as unknown as Array<StrategyRow & {
+      totalNotional: number;
+      openUnrealizedPnlUsd: number;
+      openCount: number;
+    }>).map((r) => ({
+      ...withMetrics(r, r.totalNotional ?? 0),
+      openUnrealizedPnlUsd: r.openUnrealizedPnlUsd ?? 0,
+      openCount: r.openCount ?? 0,
+    }));
   }),
 
   byBucket: protectedProcedure.query(async ({ ctx }) => {
@@ -158,8 +176,11 @@ export const performanceRouter = createTRPCRouter({
         COUNT(*) FILTER (WHERE status = 'closed')::int AS "closedCount",
         COUNT(*) FILTER (WHERE status = 'open')::int   AS "openCount",
         COALESCE(SUM(realized_pnl_usd) FILTER (WHERE status = 'closed'), 0)::float AS "totalRealizedPnlUsd",
+        COALESCE(SUM(unrealized_pnl_usd) FILTER (WHERE status = 'open'), 0)::float AS "totalUnrealizedPnlUsd",
         COALESCE(SUM(fees_usd), 0)::float AS "totalFeesUsd",
         COALESCE(SUM(qty * avg_entry_price) FILTER (WHERE status = 'open'), 0)::float AS "openExposureUsd",
+        COUNT(*) FILTER (WHERE status = 'open' AND marked_at IS NOT NULL)::int AS "markedCount",
+        MIN(marked_at) FILTER (WHERE status = 'open' AND marked_at IS NOT NULL) AS "oldestMarkAt",
         SUM(CASE WHEN status = 'closed' AND realized_pnl_usd > 0 THEN 1 ELSE 0 END)::int AS wins,
         SUM(CASE WHEN status = 'closed' AND realized_pnl_usd < 0 THEN 1 ELSE 0 END)::int AS losses,
         MAX(realized_pnl_usd) FILTER (WHERE status = 'closed')::float AS "bestTrade",

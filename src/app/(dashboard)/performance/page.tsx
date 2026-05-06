@@ -99,7 +99,8 @@ export default async function PerformancePage() {
                 <TableHead>Bucket</TableHead>
                 <TableHead className="text-right">Trades</TableHead>
                 <TableHead className="text-right">Win rate</TableHead>
-                <TableHead className="text-right">Total PnL $</TableHead>
+                <TableHead className="text-right">Realized $</TableHead>
+                <TableHead className="text-right" title="Open positions only">Unreal $</TableHead>
                 <TableHead className="text-right">Avg PnL %</TableHead>
                 <TableHead className="text-right">Sharpe</TableHead>
                 <TableHead className="text-right">Best</TableHead>
@@ -125,6 +126,7 @@ export default async function PerformancePage() {
                     {(s.winRate * 100).toFixed(0)}%
                   </TableCell>
                   <PnlCell value={s.totalPnlUsd} fmt={fmtUsd} />
+                  <PnlCell value={s.openUnrealizedPnlUsd ?? 0} fmt={fmtUsd} />
                   <PnlCell value={s.avgPnlPct} fmt={fmtPct} />
                   <TableCell className="text-right">
                     {s.sharpe === null ? (
@@ -170,6 +172,8 @@ function OverallCards({
   const closedCount = Number(overall.closedCount ?? 0);
   const openCount = Number(overall.openCount ?? 0);
   const realized = Number(overall.totalRealizedPnlUsd ?? 0);
+  const unrealized = Number(overall.totalUnrealizedPnlUsd ?? 0);
+  const total = realized + unrealized;
   const fees = Number(overall.totalFeesUsd ?? 0);
   const exposure = Number(overall.openExposureUsd ?? 0);
   const wins = Number(overall.wins ?? 0);
@@ -184,6 +188,16 @@ function OverallCards({
         label="Realized PnL"
         value={fmtUsd(realized)}
         tone={realized > 0 ? "green" : realized < 0 ? "red" : "neutral"}
+      />
+      <Card
+        label="Unrealized PnL"
+        value={fmtUsd(unrealized)}
+        tone={unrealized > 0 ? "green" : unrealized < 0 ? "red" : "neutral"}
+      />
+      <Card
+        label="Total PnL"
+        value={fmtUsd(total)}
+        tone={total > 0 ? "green" : total < 0 ? "red" : "neutral"}
       />
       <Card label="Win rate" value={`${(winRate * 100).toFixed(0)}%`} />
       <Card label="Open exposure" value={fmtUsd(exposure)} />
