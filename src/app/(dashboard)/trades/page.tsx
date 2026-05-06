@@ -20,9 +20,25 @@ export default async function TradesPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Trades</h1>
+        <h1 className="text-xl font-semibold">
+          Trades{" "}
+          <span className="ml-2 rounded bg-amber-900/40 px-2 py-0.5 text-xs font-medium text-amber-200">
+            legacy
+          </span>
+        </h1>
         <p className="text-sm text-gray-400">
-          Every order placed by the trading agent. Open positions are polled every {`${60}s`} for TP / SL / time-stop.
+          Every order placed by the original trading-agent (Phase 5). Open positions
+          are polled every {`${60}s`} for TP / SL / time-stop.
+        </p>
+        <p className="mt-2 rounded border border-amber-900/50 bg-amber-950/30 p-3 text-xs text-amber-100">
+          <strong>Deprecation:</strong> trading-agent is being retired in favour
+          of the oms-gateway → adapter pipeline (binance / alpaca / polymarket).
+          For new analytics see{" "}
+          <a className="underline hover:text-amber-50" href="/performance">
+            /performance
+          </a>
+          ; for individual position detail use{" "}
+          <code className="text-amber-200">/positions/&lt;id&gt;</code>.
         </p>
       </div>
 
