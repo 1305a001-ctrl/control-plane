@@ -170,6 +170,54 @@ export const performanceRouter = createTRPCRouter({
     }>;
   }),
 
+  /**
+   * Equity-curve + drawdown time-series for the /performance dashboard charts.
+   *
+   * Pulls from risk_ledger where (scope, period) = ('total', 'total') — that's
+   * the cumulative-since-paper-start snapshot taken every 60s by risk-watcher.
+   * We downsample to ~120 points so the SVG stays cheap to render — important
+   * once the table grows to weeks/months of minute-resolution data.
+   *
+   * Returns oldest-first so the line charts read left → right naturally.
+   */
+  curves: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.execute(sql`
+      WITH t AS (
+        SELECT
+          snapshot_at,
+          pnl_usd,
+          pnl_pct,
+          drawdown_pct,
+          drawdown_usd,
+          high_water_mark_usd,
+          ROW_NUMBER() OVER (ORDER BY snapshot_at) AS rn,
+          COUNT(*) OVER ()                         AS n
+        FROM risk_ledger
+        WHERE scope = 'total' AND period = 'total'
+      )
+      SELECT
+        snapshot_at                AS "ts",
+        pnl_usd::float             AS "pnlUsd",
+        pnl_pct::float             AS "pnlPct",
+        drawdown_pct::float        AS "drawdownPct",
+        drawdown_usd::float        AS "drawdownUsd",
+        high_water_mark_usd::float AS "highWaterMarkUsd"
+      FROM t
+      WHERE rn = 1
+         OR rn = n
+         OR rn % GREATEST(1, (n / 120)::int) = 0
+      ORDER BY snapshot_at ASC
+    `);
+    return rows as unknown as Array<{
+      ts: Date;
+      pnlUsd: number;
+      pnlPct: number;
+      drawdownPct: number;
+      drawdownUsd: number;
+      highWaterMarkUsd: number | null;
+    }>;
+  }),
+
   overall: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.execute(sql`
       SELECT
