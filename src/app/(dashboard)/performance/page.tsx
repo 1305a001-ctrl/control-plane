@@ -1,4 +1,5 @@
 import { Badge } from "~/components/ui/badge";
+import { LineChart } from "~/components/charts/line-chart";
 import {
   Table,
   TableBody,
@@ -14,10 +15,11 @@ export const dynamic = "force-dynamic";
 const MIN_TRADES_FOR_SHARPE = 10;
 
 export default async function PerformancePage() {
-  const [byStrategy, byBucket, overall] = await Promise.all([
+  const [byStrategy, byBucket, overall, curves] = await Promise.all([
     api.performance.byStrategy(),
     api.performance.byBucket(),
     api.performance.overall(),
+    api.performance.curves(),
   ]);
 
   return (
@@ -32,6 +34,26 @@ export default async function PerformancePage() {
       </div>
 
       <OverallCards overall={overall as Record<string, number | null>} />
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
+          Curves
+        </h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <LineChart
+            caption="Equity (cum. realized PnL, USD)"
+            data={curves.map((c) => ({ ts: c.ts, value: c.pnlUsd }))}
+            tone="green"
+            fmt={fmtUsd}
+          />
+          <LineChart
+            caption="Drawdown from high-water mark (%)"
+            data={curves.map((c) => ({ ts: c.ts, value: -Math.abs(c.drawdownPct) * 100 }))}
+            tone="red"
+            fmt={(n) => `${n.toFixed(2)}%`}
+          />
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
