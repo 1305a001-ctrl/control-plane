@@ -10,6 +10,7 @@
  * report null until then.
  */
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
@@ -169,6 +170,122 @@ export const performanceRouter = createTRPCRouter({
       worstTrade: number;
     }>;
   }),
+
+  /**
+   * Detail view for a single strategy by slug — drives /performance/[slug].
+   *
+   * Returns three things in one round-trip:
+   *  - `strategy`: frontmatter snippet (slug, name, bucket, status, runtime)
+   *  - `aggregate`: the same per-strategy metrics as `byStrategy` filtered
+   *    to one row, plus open count + unrealized PnL
+   *  - `recent`: most-recent 20 closed positions for this strategy
+   *  - `byAsset`: PnL roll-up per asset (multi-asset strategies surface
+   *    which symbols actually contribute)
+   */
+  bySlug: protectedProcedure
+    .input(z.object({ slug: z.string().min(1).max(120) }))
+    .query(async ({ ctx, input }) => {
+      const slug = input.slug;
+
+      const stratRows = await ctx.db.execute(sql`
+        SELECT
+          id::text                              AS "id",
+          slug,
+          name,
+          status,
+          frontmatter->>'bucket'                AS bucket,
+          frontmatter->>'runtime'               AS runtime,
+          frontmatter->>'type'                  AS type,
+          version
+        FROM strategies
+        WHERE slug = ${slug}
+        LIMIT 1
+      `);
+      const strategy = (stratRows as unknown as Array<Record<string, unknown>>)[0] ?? null;
+      if (!strategy) return null;
+
+      const aggRows = await ctx.db.execute(sql`
+        WITH closed AS (
+          SELECT
+            p.realized_pnl_usd,
+            p.fees_usd,
+            (p.qty * p.avg_entry_price) AS notional,
+            CASE
+              WHEN p.qty * p.avg_entry_price > 0
+              THEN p.realized_pnl_usd / (p.qty * p.avg_entry_price)
+              ELSE NULL
+            END AS pnl_pct,
+            p.closed_at
+          FROM positions p
+          WHERE p.strategy_id = ${String(strategy.id)}::uuid
+            AND p.status = 'closed'
+            AND p.realized_pnl_usd IS NOT NULL
+        )
+        SELECT
+          COUNT(*)::int                                          AS "tradeCount",
+          SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END)::int AS wins,
+          SUM(CASE WHEN realized_pnl_usd < 0 THEN 1 ELSE 0 END)::int AS losses,
+          COALESCE(SUM(realized_pnl_usd), 0)::float AS "totalPnlUsd",
+          COALESCE(AVG(realized_pnl_usd), 0)::float AS "avgPnlUsd",
+          AVG(pnl_pct)::float                       AS "avgPnlPct",
+          STDDEV(pnl_pct)::float                    AS "stddevPnlPct",
+          COALESCE(SUM(notional), 0)::float         AS "totalNotional",
+          COALESCE(SUM(fees_usd), 0)::float         AS "totalFeesUsd",
+          COALESCE(MAX(realized_pnl_usd), 0)::float AS "bestTrade",
+          COALESCE(MIN(realized_pnl_usd), 0)::float AS "worstTrade",
+          MIN(closed_at)                             AS "firstClosedAt",
+          MAX(closed_at)                             AS "lastClosedAt"
+        FROM closed
+      `);
+      const agg = (aggRows as unknown as Array<Record<string, unknown>>)[0] ?? {};
+
+      const openRows = await ctx.db.execute(sql`
+        SELECT
+          COUNT(*)::int AS "openCount",
+          COALESCE(SUM(unrealized_pnl_usd), 0)::float AS "openUnrealizedPnlUsd"
+        FROM positions
+        WHERE strategy_id = ${String(strategy.id)}::uuid AND status = 'open'
+      `);
+      const open = (openRows as unknown as Array<Record<string, unknown>>)[0] ?? {};
+
+      const recent = await ctx.db.execute(sql`
+        SELECT
+          id::text         AS "id",
+          asset,
+          venue,
+          side,
+          qty::float       AS qty,
+          avg_entry_price::float AS "avgEntryPrice",
+          avg_exit_price::float  AS "avgExitPrice",
+          realized_pnl_usd::float AS "realizedPnlUsd",
+          opened_at        AS "openedAt",
+          closed_at        AS "closedAt"
+        FROM positions
+        WHERE strategy_id = ${String(strategy.id)}::uuid AND status = 'closed'
+        ORDER BY closed_at DESC NULLS LAST
+        LIMIT 20
+      `);
+
+      const byAsset = await ctx.db.execute(sql`
+        SELECT
+          asset,
+          COUNT(*)::int AS "tradeCount",
+          SUM(CASE WHEN realized_pnl_usd > 0 THEN 1 ELSE 0 END)::int AS wins,
+          COALESCE(SUM(realized_pnl_usd), 0)::float AS "totalPnlUsd"
+        FROM positions
+        WHERE strategy_id = ${String(strategy.id)}::uuid
+          AND status = 'closed' AND realized_pnl_usd IS NOT NULL
+        GROUP BY asset
+        ORDER BY "totalPnlUsd" DESC
+      `);
+
+      return {
+        strategy,
+        aggregate: { ...agg, ...open },
+        recent: recent as unknown as Array<Record<string, unknown>>,
+        byAsset: byAsset as unknown as Array<Record<string, unknown>>,
+      };
+    }),
 
   /**
    * Equity-curve + drawdown time-series for the /performance dashboard charts.
