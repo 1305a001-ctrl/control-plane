@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Badge } from "~/components/ui/badge";
 import { LineChart } from "~/components/charts/line-chart";
 import {
@@ -134,7 +136,16 @@ export default async function PerformancePage() {
               {byStrategy.map((s) => (
                 <TableRow key={s.strategyId}>
                   <TableCell className="font-mono">
-                    {s.slug ?? <span className="text-gray-500">{s.strategyId.slice(0, 8)}</span>}
+                    {s.slug ? (
+                      <Link
+                        href={`/performance/${s.slug}`}
+                        className="text-blue-400 hover:text-blue-300"
+                      >
+                        {s.slug}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-500">{s.strategyId.slice(0, 8)}</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {s.bucket ? (
