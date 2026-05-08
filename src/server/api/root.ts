@@ -14,6 +14,7 @@ import { riskRouter } from "~/server/api/routers/risk";
 import { killRouter } from "~/server/api/routers/kill";
 import { macroRouter } from "~/server/api/routers/macro";
 import { dashboardRouter } from "~/server/api/routers/dashboard";
+import { researchRouter } from "~/server/api/routers/research";
 
 export const appRouter = createTRPCRouter({
   configs: configsRouter,
@@ -31,6 +32,7 @@ export const appRouter = createTRPCRouter({
   kill: killRouter,
   macro: macroRouter,
   dashboard: dashboardRouter,
+  research: researchRouter,
 });
 
 export type AppRouter = typeof appRouter;
