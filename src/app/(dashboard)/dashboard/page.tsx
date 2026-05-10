@@ -11,6 +11,9 @@ import {
 import { api } from "~/trpc/server";
 
 import { EquitySparkline } from "../_components/equity-sparkline";
+import { PnLVenueStrip } from "../_components/pnl-venue-strip";
+import { StrategyFitnessGrid } from "../_components/strategy-fitness-grid";
+import { RecentActivityFeed } from "../_components/recent-activity-feed";
 
 /**
  * Trading OS — landing dashboard. Live data via api.dashboard.summary().
@@ -41,27 +44,32 @@ export default async function TradingDashboard() {
   const totalDdAbs = Math.abs(data.risk.drawdownPct); // total = same window for v0.1.0
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Trading OS</h1>
-          <p className="text-sm text-gray-400">
-            1000–3000 trades/day target · paper-mode · L0 maturity ·
+          <h1 className="text-2xl font-bold tracking-tight">Trading OS</h1>
+          <p className="text-xs text-zinc-500">
+            paper · L0 maturity · 24/7 watchdog ·{" "}
             {data.risk.snapshotAt ? (
-              <span> last snapshot {new Date(data.risk.snapshotAt).toLocaleTimeString()}</span>
+              <span className="text-zinc-400">
+                last snapshot {new Date(data.risk.snapshotAt).toLocaleTimeString()}
+              </span>
             ) : (
-              <span className="text-amber-400"> waiting for risk-watcher snapshot</span>
+              <span className="text-amber-400">waiting for risk-watcher snapshot</span>
             )}
           </p>
         </div>
         <Link
           href="/kill-switch"
-          className="rounded-md bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 active:bg-red-800"
+          className="rounded-md bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-rose-900/30 transition-colors hover:bg-rose-700 active:bg-rose-800"
         >
           🔴 KILL ALL
         </Link>
       </div>
+
+      {/* HERO: PnL by venue */}
+      <PnLVenueStrip />
 
       {/* Status row */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -119,27 +127,35 @@ export default async function TradingDashboard() {
         </Card>
       </div>
 
-      {/* Equity curve sparkline */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-            Equity curve
-          </CardTitle>
-          <CardDescription>
-            risk_ledger snapshots (1-min cadence from risk-watcher)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EquitySparkline
-            snapshots={riskRecent.map((r) => ({
-              snapshotAt: r.snapshotAt,
-              pnlUsd: r.pnlUsd,
-            }))}
-            width={640}
-            height={80}
-          />
-        </CardContent>
-      </Card>
+      {/* Strategy fitness heatmap */}
+      <StrategyFitnessGrid />
+
+      {/* Equity curve + Recent activity feed side-by-side */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-zinc-400">
+              Equity Curve
+            </CardTitle>
+            <CardDescription className="text-[10px]">
+              risk_ledger snapshots (1-min cadence)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EquitySparkline
+              snapshots={riskRecent.map((r) => ({
+                snapshotAt: r.snapshotAt,
+                pnlUsd: r.pnlUsd,
+              }))}
+              width={400}
+              height={140}
+            />
+          </CardContent>
+        </Card>
+        <div className="lg:col-span-2">
+          <RecentActivityFeed />
+        </div>
+      </div>
 
       {/* Risk meters row */}
       <Card>
